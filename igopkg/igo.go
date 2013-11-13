@@ -1,3 +1,5 @@
+// Package igo implements the machinery necessary to run a Go kernel for IPython.
+// It should be installed with an "igo" command to launch the kernel.
 package igo
 
 import (
@@ -21,6 +23,7 @@ type MsgHeader struct  {
     Msg_type string `json:"msg_type"`
 }
 
+// ComposedMsg represents an entire message in a high-level structure.
 type ComposedMsg struct {
     Header MsgHeader
     Parent_header MsgHeader
@@ -28,6 +31,7 @@ type ComposedMsg struct {
     Content interface{}
 }
 
+// ConnectionInfo stores the contents of the kernel connection file created by IPython.
 type ConnectionInfo struct {
     Signature_scheme string
     Transport string
@@ -40,6 +44,8 @@ type ConnectionInfo struct {
     IP string
 }
 
+// SocketGroup holds the sockets the kernel needs to communicate with the kernel, and
+// the key for message signing.
 type SocketGroup struct {
     Shell_socket *zmq.Socket
     Stdin_socket *zmq.Socket
@@ -47,8 +53,7 @@ type SocketGroup struct {
     Key []byte
 }
 
-
-
+// PrepareSockets sets up the ZMQ sockets through which the kernel will communicate.
 func PrepareSockets(conn_info ConnectionInfo) (sg SocketGroup) {
     context, _ := zmq.NewContext()
     sg.Shell_socket, _ = context.NewSocket(zmq.ROUTER)
@@ -71,11 +76,16 @@ func PrepareSockets(conn_info ConnectionInfo) (sg SocketGroup) {
     return
 }
 
+// InvalidSignatureError is returned when the signature on a received message does not
+// validate.
 type InvalidSignatureError struct {}
 func (e *InvalidSignatureError) Error() string {
     return "A message had an invalid signature"
 }
 
+// WireMsgToComposedMsg translates a multipart ZMQ messages received from a socket into
+// a ComposedMsg struct and a slice of return identities. This includes verifying the
+// message signature.
 func WireMsgToComposedMsg(msgparts [][]byte, signkey []byte) (msg ComposedMsg,
                             identities [][]byte, err error) {
     i := 0
@@ -104,6 +114,8 @@ func WireMsgToComposedMsg(msgparts [][]byte, signkey []byte) (msg ComposedMsg,
     return
 }
 
+// ToWireMsg translates a ComposedMsg into a multipart ZMQ message ready to send, and
+// signs it. This does not add the return identities or the delimiter.
 func (msg ComposedMsg) ToWireMsg(signkey []byte) (msgparts [][]byte) {
     msgparts = make([][]byte, 5)
     header, _ := json.Marshal(msg.Header)
@@ -130,12 +142,15 @@ func (msg ComposedMsg) ToWireMsg(signkey []byte) (msgparts [][]byte) {
     return
 }
 
+// MsgReceipt represents a received message, its return identities, and the sockets for
+// communication.
 type MsgReceipt struct {
     Msg ComposedMsg
     Identities [][]byte
     Sockets SocketGroup
 }
 
+// SendResponse sends a message back to return identites of the received message.
 func (receipt *MsgReceipt) SendResponse(socket *zmq.Socket, msg ComposedMsg) {
     socket.SendMultipart(receipt.Identities, zmq.SNDMORE)
     socket.Send([]byte("<IDS|MSG>"), zmq.SNDMORE)
@@ -144,7 +159,7 @@ func (receipt *MsgReceipt) SendResponse(socket *zmq.Socket, msg ComposedMsg) {
     fmt.Println(msg.Content)
 }
 
-
+// HandleShellMsg responds to a message on the shell ROUTER socket.
 func HandleShellMsg(receipt MsgReceipt) {
     //fmt.Println(msg)
     switch receipt.Msg.Header.Msg_type {
@@ -156,6 +171,8 @@ func HandleShellMsg(receipt MsgReceipt) {
     }
 }
 
+// NewMsg creates a new ComposedMsg to respond to a parent message. This includes setting
+// up its headers.
 func NewMsg(msg_type string, parent ComposedMsg) (msg ComposedMsg) {
     msg.Parent_header = parent.Header
     msg.Header.Session = parent.Header.Session
@@ -166,25 +183,31 @@ func NewMsg(msg_type string, parent ComposedMsg) (msg ComposedMsg) {
     return
 }
 
+// KernelInfo holds information about the igo kernel, for kernel_info_reply messages.
 type KernelInfo struct {
     Protocol_version []int `json:"protocol_version"`
     Language string `json:"language"`
 }
 
+// KernelStatus holds a kernel state, for status broadcast messages.
 type KernelStatus struct {
     ExecutionState string `json:"execution_state"`
 }
 
+//SendKernelInfo sends a kernel_info_reply message.
 func SendKernelInfo(receipt MsgReceipt) {
     reply := NewMsg("kernel_info_reply", receipt.Msg)
     reply.Content = KernelInfo{[]int{4, 0}, "go"}
     receipt.SendResponse(receipt.Sockets.Shell_socket, reply)
 }
 
+// World holds the user namespace for the REPL.
 var World *eval.World
 var fset *token.FileSet
+// ExecCounter is incremented each time we run user code.
 var ExecCounter int = 0
 
+// RunCode runs the given user code, returning the expression value and/or an error.
 func RunCode(text string) (val interface{}, err error) {
     var code eval.Code
     code, err = World.Compile(fset, text)
@@ -195,12 +218,15 @@ func RunCode(text string) (val interface{}, err error) {
     return
 }
 
+// OutputMsg holds the data for a pyout message.
 type OutputMsg struct {
     Execcount int `json:"execution_count"`
     Data map[string]string `json:"data"`
     Metadata map[string]interface{} `json:"metadata"`
 }
 
+// HandleExecuteRequest runs code from an execute_request method, and sends the various
+// reply messages.
 func HandleExecuteRequest(receipt MsgReceipt) {
     reply := NewMsg("execute_reply", receipt.Msg)
     content := make(map[string]interface{})
@@ -236,7 +262,8 @@ func HandleExecuteRequest(receipt MsgReceipt) {
     receipt.SendResponse(receipt.Sockets.IOPub_socket, idle)
 }
 
-
+// RunKernel is the main entry point to start the kernel. This is what is called by the
+// igo executable.
 func RunKernel(connection_file string) {
     World = eval.NewWorld()
     fset = token.NewFileSet()

@@ -1,3 +1,4 @@
+// The igo command starts a Go kernel for IPython.
 package main
 
 import (
