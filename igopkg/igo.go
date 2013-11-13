@@ -4,6 +4,8 @@ package igo
 
 import (
     "fmt"
+    "log"
+    "io"
     "io/ioutil"
     "encoding/json"
     "encoding/hex"
@@ -15,6 +17,8 @@ import (
     "github.com/sbinet/go-eval/pkg/eval"
 
 )
+
+var logger *log.Logger
 
 type MsgHeader struct  {
     Msg_id string `json:"msg_id"`
@@ -155,19 +159,18 @@ func (receipt *MsgReceipt) SendResponse(socket *zmq.Socket, msg ComposedMsg) {
     socket.SendMultipart(receipt.Identities, zmq.SNDMORE)
     socket.Send([]byte("<IDS|MSG>"), zmq.SNDMORE)
     socket.SendMultipart(msg.ToWireMsg(receipt.Sockets.Key), 0)
-    fmt.Println("<--", msg.Header.Msg_type)
-    fmt.Println(msg.Content)
+    logger.Println("<--", msg.Header.Msg_type)
+    logger.Println(msg.Content)
 }
 
 // HandleShellMsg responds to a message on the shell ROUTER socket.
 func HandleShellMsg(receipt MsgReceipt) {
-    //fmt.Println(msg)
     switch receipt.Msg.Header.Msg_type {
         case "kernel_info_request":
             SendKernelInfo(receipt)
         case "execute_request":
             HandleExecuteRequest(receipt)
-        default: fmt.Println("Other:", receipt.Msg.Header.Msg_type)
+        default: logger.Println("Unhandled shell message:", receipt.Msg.Header.Msg_type)
     }
 }
 
@@ -264,21 +267,20 @@ func HandleExecuteRequest(receipt MsgReceipt) {
 
 // RunKernel is the main entry point to start the kernel. This is what is called by the
 // igo executable.
-func RunKernel(connection_file string) {
+func RunKernel(connection_file string, logwriter io.Writer) {
+    logger = log.New(logwriter, "igopkg ", log.LstdFlags)
     World = eval.NewWorld()
     fset = token.NewFileSet()
     var conn_info ConnectionInfo
     bs, err := ioutil.ReadFile(connection_file)
     if err != nil {
-        fmt.Println(err)
-        return
+        log.Fatalln(err)
     }
     err = json.Unmarshal(bs, &conn_info)
     if err != nil {
-        fmt.Println("error:", err)
-        return
+        log.Fatalln(err)
     }
-    fmt.Printf("%+v\n", conn_info)
+    logger.Printf("%+v\n", conn_info)
     sockets := PrepareSockets(conn_info)
 
     pi := zmq.PollItems{
@@ -286,11 +288,11 @@ func RunKernel(connection_file string) {
         zmq.PollItem{Socket: sockets.Stdin_socket, Events: zmq.POLLIN},
     }
     var msgparts [][]byte
+    // Message receiving loop:
     for {
         _, err = zmq.Poll(pi, -1)
         if err != nil {
-            fmt.Println(err)
-            return
+            log.Fatalln(err)
         }
         switch {
         case pi[0].REvents&zmq.POLLIN != 0:

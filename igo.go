@@ -2,16 +2,27 @@
 package main
 
 import (
-    "fmt"
+    "flag"
+    "io"
+    "log"
     "os"
     igo "github.com/takluyver/igo/igopkg"
 )
 
 func main() {
-    if len(os.Args) < 2 {
-        fmt.Println("Need a command line argument for the connection file.")
-        os.Exit(1)
+    debug := flag.Bool("debug", false, "Log extra info to stderr")
+    flag.Parse()
+    if flag.NArg() < 1 {
+        log.Fatalln("Need a command line argument for the connection file.")
     }
-    igo.RunKernel(os.Args[1])
+    var logwriter io.Writer = os.Stderr
+    var err error
+    if !*debug {
+        logwriter, err = os.OpenFile(os.DevNull, os.O_WRONLY, 0666)
+        if err != nil {
+            log.Fatalln(err)
+        }
+    }
+    igo.RunKernel(flag.Arg(0), logwriter)
 }
 
