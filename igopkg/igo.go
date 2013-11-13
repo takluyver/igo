@@ -235,7 +235,10 @@ func HandleExecuteRequest(receipt MsgReceipt) {
     content := make(map[string]interface{})
     reqcontent := receipt.Msg.Content.(map[string]interface{})
     code := reqcontent["code"].(string)
-    ExecCounter++
+    silent := reqcontent["silent"].(bool)
+    if !silent {
+        ExecCounter++
+    }
     content["execution_count"] = ExecCounter
     val, err := RunCode(code)
     if err == nil {
@@ -243,7 +246,7 @@ func HandleExecuteRequest(receipt MsgReceipt) {
         content["payload"] = make([]map[string]interface{}, 0)
         content["user_variables"] = make(map[string]string)
         content["user_expressions"] = make(map[string]string)
-        if val != nil {
+        if (val != nil) && !silent {
             var out_content OutputMsg
             out := NewMsg("pyout", receipt.Msg)
             out_content.Execcount = ExecCounter
