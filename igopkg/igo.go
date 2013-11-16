@@ -53,6 +53,7 @@ type ConnectionInfo struct {
 // the key for message signing.
 type SocketGroup struct {
     Shell_socket *zmq.Socket
+    Control_socket *zmq.Socket
     Stdin_socket *zmq.Socket
     IOPub_socket *zmq.Socket
     Key []byte
@@ -62,12 +63,14 @@ type SocketGroup struct {
 func PrepareSockets(conn_info ConnectionInfo) (sg SocketGroup) {
     context, _ := zmq.NewContext()
     sg.Shell_socket, _ = context.NewSocket(zmq.ROUTER)
+    sg.Control_socket, _ = context.NewSocket(zmq.ROUTER)
     sg.Stdin_socket, _ = context.NewSocket(zmq.ROUTER)
     sg.IOPub_socket, _ = context.NewSocket(zmq.PUB)
 
     address := fmt.Sprintf("%v://%v:%%v", conn_info.Transport, conn_info.IP)
 
     sg.Shell_socket.Bind(fmt.Sprintf(address, conn_info.Shell_port))
+    sg.Control_socket.Bind(fmt.Sprintf(address, conn_info.Control_port))
     sg.Stdin_socket.Bind(fmt.Sprintf(address, conn_info.Stdin_port))
     sg.IOPub_socket.Bind(fmt.Sprintf(address, conn_info.IOPub_port))
 
@@ -213,9 +216,11 @@ type ShutdownReply struct {
 
 func HandleShutdownRequest(receipt MsgReceipt) {
     reply := NewMsg("shutdown_reply", receipt.Msg)
-    restart := receipt.Msg.Content.(map[string]bool)["restart"]
+    content := receipt.Msg.Content.(map[string]interface{})
+    restart := content["restart"].(bool)
     reply.Content = ShutdownReply{restart}
     receipt.SendResponse(receipt.Sockets.Shell_socket, reply)
+    logger.Println("Shutting down in response to shutdown_request")
     os.Exit(0)
 }
 
@@ -314,6 +319,7 @@ func RunKernel(connection_file string, logwriter io.Writer) {
     pi := zmq.PollItems{
         zmq.PollItem{Socket: sockets.Shell_socket, Events: zmq.POLLIN},
         zmq.PollItem{Socket: sockets.Stdin_socket, Events: zmq.POLLIN},
+        zmq.PollItem{Socket: sockets.Control_socket, Events: zmq.POLLIN},
     }
     var msgparts [][]byte
     // Message receiving loop:
@@ -323,7 +329,7 @@ func RunKernel(connection_file string, logwriter io.Writer) {
             log.Fatalln(err)
         }
         switch {
-        case pi[0].REvents&zmq.POLLIN != 0:
+        case pi[0].REvents&zmq.POLLIN != 0:  // shell socket
             msgparts, _ = pi[0].Socket.RecvMultipart(0)
             msg, ids, err := WireMsgToComposedMsg(msgparts, sockets.Key)
             if err != nil {
@@ -331,8 +337,16 @@ func RunKernel(connection_file string, logwriter io.Writer) {
                 return
             }
             HandleShellMsg(MsgReceipt{msg, ids, sockets})
-        case pi[1].REvents&zmq.POLLIN != 0:
+        case pi[1].REvents&zmq.POLLIN != 0:  // stdin socket - not implemented.
             pi[1].Socket.RecvMultipart(0)
+        case pi[2].REvents&zmq.POLLIN != 0:  // control socket - treat like shell socket.
+            msgparts, _ = pi[2].Socket.RecvMultipart(0)
+            msg, ids, err := WireMsgToComposedMsg(msgparts, sockets.Key)
+            if err != nil {
+                fmt.Println(err)
+                return
+            }
+            HandleShellMsg(MsgReceipt{msg, ids, sockets})
         }
     }
 }
