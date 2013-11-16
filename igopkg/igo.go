@@ -161,7 +161,7 @@ func (receipt *MsgReceipt) SendResponse(socket *zmq.Socket, msg ComposedMsg) {
     socket.Send([]byte("<IDS|MSG>"), zmq.SNDMORE)
     socket.SendMultipart(msg.ToWireMsg(receipt.Sockets.Key), 0)
     logger.Println("<--", msg.Header.Msg_type)
-    logger.Println(msg.Content)
+    logger.Printf("%+v\n", msg.Content)
 }
 
 // HandleShellMsg responds to a message on the shell ROUTER socket.
@@ -267,6 +267,7 @@ func HandleExecuteRequest(receipt MsgReceipt) {
             out_content.Execcount = ExecCounter
             out_content.Data = make(map[string]string)
             out_content.Data["text/plain"] = fmt.Sprint(val)
+            out_content.Metadata = make(map[string]interface{})
             out.Content = out_content
             receipt.SendResponse(receipt.Sockets.IOPub_socket, out)
         }
