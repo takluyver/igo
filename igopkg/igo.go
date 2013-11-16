@@ -243,6 +243,12 @@ type OutputMsg struct {
     Metadata map[string]interface{} `json:"metadata"`
 }
 
+type ErrMsg struct {
+    EName string `json:"ename"`
+    EValue string `json:"evalue"`
+    Traceback []string `json:"traceback"`
+}
+
 // HandleExecuteRequest runs code from an execute_request method, and sends the various
 // reply messages.
 func HandleExecuteRequest(receipt MsgReceipt) {
@@ -276,6 +282,9 @@ func HandleExecuteRequest(receipt MsgReceipt) {
         content["ename"] = "ERROR"
         content["evalue"] = err.Error()
         content["traceback"] = []string{err.Error()}
+        errormsg := NewMsg("pyerr", receipt.Msg)
+        errormsg.Content = ErrMsg{"Error", err.Error(), []string{err.Error()}}
+        receipt.SendResponse(receipt.Sockets.IOPub_socket, errormsg)
     }
     reply.Content = content
     receipt.SendResponse(receipt.Sockets.Shell_socket, reply)
