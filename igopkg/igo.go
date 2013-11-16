@@ -7,6 +7,7 @@ import (
     "log"
     "io"
     "io/ioutil"
+    "os"
     "encoding/json"
     "encoding/hex"
     "crypto/sha256"
@@ -170,6 +171,8 @@ func HandleShellMsg(receipt MsgReceipt) {
             SendKernelInfo(receipt)
         case "execute_request":
             HandleExecuteRequest(receipt)
+        case "shutdown_request":
+            HandleShutdownRequest(receipt)
         default: logger.Println("Unhandled shell message:", receipt.Msg.Header.Msg_type)
     }
 }
@@ -202,6 +205,18 @@ func SendKernelInfo(receipt MsgReceipt) {
     reply := NewMsg("kernel_info_reply", receipt.Msg)
     reply.Content = KernelInfo{[]int{4, 0}, "go"}
     receipt.SendResponse(receipt.Sockets.Shell_socket, reply)
+}
+
+type ShutdownReply struct {
+    Restart bool `json:"restart"`
+}
+
+func HandleShutdownRequest(receipt MsgReceipt) {
+    reply := NewMsg("shutdown_reply", receipt.Msg)
+    restart := receipt.Msg.Content.(map[string]bool)["restart"]
+    reply.Content = ShutdownReply{restart}
+    receipt.SendResponse(receipt.Sockets.Shell_socket, reply)
+    os.Exit(0)
 }
 
 // World holds the user namespace for the REPL.
