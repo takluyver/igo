@@ -4,7 +4,7 @@ package igo
 
 import (
     "fmt"
-    "github.com/sbinet/go-eval/pkg/eval"
+    eval "github.com/sbinet/go-eval"
     "go/token"
 )
 
