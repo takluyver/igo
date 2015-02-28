@@ -1,13 +1,19 @@
-A Go kernel for IPython.
+A Go kernel for IPython
+=======================
 
 To install::
 
+    pip install 'ipython>=3.0.0' jinja2 jsonschema pyzmq tornado werkzeug
+
     go get github.com/takluyver/igo
+
+    mkdir -p ~/.ipython/kernels/igo
+    cp -r $GOPATH/src/github.com/takluyver/igo/kernel/* ~/.ipython/kernels/igo
+
+Edit ~/.ipython/kernels/igo/kernel.json and replace $GOPATH with your actual GOPATH
 
 To run::
 
-    ipython console --KernelManager.kernel_cmd="['igo', '{connection_file}']"
-
-(You can substitute ``notebook`` or ``qtconsole`` for ``console``)
+    ipython notebook
 
 Go code is run using `go-eval <https://github.com/sbinet/go-eval/>`_.

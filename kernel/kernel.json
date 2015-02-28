@@ -1,0 +1,8 @@
+{
+ "language": "go",
+ "display_name": "Golang 1.4",
+ "argv": [
+  "$GOPATH/bin/igo",
+  "{connection_file}"
+ ]
+}
