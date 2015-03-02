@@ -3,7 +3,7 @@ A Go kernel for IPython
 
 To install::
 
-    pip install 'ipython>=3.0.0' jinja2 jsonschema pyzmq tornado werkzeug
+    pip install ipython[notebook]
 
     go get github.com/takluyver/igo
 
