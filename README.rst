@@ -18,6 +18,9 @@ To run::
 
 Go code is run using `go-eval <https://github.com/sbinet/go-eval/>`_.
 
-## Support
+Support
+-------
 
-The project is not being supported currently. The current state of the Go eval tools are too limited for it to be useful.
+The project is not being supported currently.
+The current state of the Go eval tools are too limited for it to be useful.
+If you want to push it forwards, please get in touch.
