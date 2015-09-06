@@ -17,3 +17,7 @@ To run::
     ipython notebook
 
 Go code is run using `go-eval <https://github.com/sbinet/go-eval/>`_.
+
+## Support
+
+The project is not being supported currently. The current state of the Go eval tools are too limited for it to be useful.
